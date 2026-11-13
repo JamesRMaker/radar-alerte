@@ -238,3 +238,48 @@ fn grand_volume_rapide() {
     }
     assert!(t.elapsed().as_millis() < 2000, "{:?}", t.elapsed());
 }
+
+#[test]
+fn types_simplifies_et_distance_widget() {
+    // Mode précis : un radar discriminant est annoncé comme « radar fixe », avec sa distance.
+    let mut e = precise();
+    let r = radar_at(1500.0, 90.0, RadarKind::Discriminant, Some(90));
+    let target = (r.lat, r.lon);
+    e.set_radars(vec![r]);
+    let mut saw = false;
+    for s in 0..60 {
+        let (lat, lon) = destination(START.0, START.1, 90.0, 25.0 * s as f64);
+        let u = e.update(Fix { lat, lon, speed_mps: Some(25.0), bearing_deg: Some(90.0), accuracy_m: Some(5.0), time_ms: s * 1000 });
+        for ev in &u.events {
+            let m = crate::output::message(ev, AlertMode::Precise);
+            assert!(!m.contains("discriminant"), "{m}");
+        }
+        let j = crate::output::update_json(&u, AlertMode::Precise, 1, 0);
+        if j.contains("\"title\":\"Radar fixe\"") {
+            saw = true;
+            let d = distance_m(lat, lon, target.0, target.1).round() as i64;
+            assert!(j.contains(&format!("\"dist\":{d}")) || j.contains(&format!("\"dist\":{}", d + 1)) || j.contains(&format!("\"dist\":{}", d - 1)), "{j}");
+        }
+    }
+    assert!(saw);
+
+    // Mode zone : la distance affichée est celle de la fin de zone, qui décroît jusqu'à 0.
+    let mut z = Engine::default();
+    let r = radar_at(3000.0, 90.0, RadarKind::Fixe, Some(80));
+    z.set_radars(vec![r]);
+    let mut last: Option<f64> = None;
+    let mut seen = 0;
+    for s in 0..200 {
+        let (lat, lon) = destination(START.0, START.1, 90.0, 25.0 * s as f64);
+        let u = z.update(Fix { lat, lon, speed_mps: Some(25.0), bearing_deg: Some(90.0), accuracy_m: Some(5.0), time_ms: s * 1000 });
+        if let Some(rem) = u.status.zone_remaining_m {
+            seen += 1;
+            if let Some(prev) = last {
+                assert!(rem <= prev + 1.0, "{rem} > {prev}");
+            }
+            last = Some(rem);
+            assert!(crate::output::status_text(&u.status).contains("fin dans"));
+        }
+    }
+    assert!(seen > 10);
+}

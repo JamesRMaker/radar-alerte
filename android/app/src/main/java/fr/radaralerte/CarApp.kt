@@ -63,7 +63,8 @@ class RadarCarScreen(ctx: CarContext) : Screen(ctx) {
     private fun onData(d: JSONObject) {
         data = if (d.optBoolean("stopped")) null else d
         val speedBucket = if (d.isNull("speed")) -1 else d.optInt("speed") / 2
-        val key = listOf(d.optString("text"), d.opt("limit"), d.optBoolean("danger"), speedBucket).joinToString("|")
+        val distBucket = if (d.isNull("dist")) -1 else (d.optDouble("dist") / 50).toInt()
+        val key = listOf(d.optString("title"), distBucket, d.opt("limit"), d.optBoolean("danger"), speedBucket).joinToString("|")
         if (key == shownKey) return
         val importantChange = key.substringBeforeLast('|') != shownKey.substringBeforeLast('|')
         val now = SystemClock.elapsedRealtime()
@@ -120,12 +121,17 @@ class RadarCarScreen(ctx: CarContext) : Screen(ctx) {
         } else if (d == null) {
             pane.addRow(Row.Builder().setTitle("Recherche du GPS…").build())
         } else {
-            pane.addRow(Row.Builder().setTitle(d.optString("text").ifEmpty { "Surveillance active" }).build())
-            val speed = if (d.isNull("speed")) "–" else d.optInt("speed").toString()
-            pane.addRow(Row.Builder().setTitle("Vitesse").addText("$speed km/h").build())
+            val title = d.optString("title")
+            if (title.isNotEmpty() && !d.isNull("dist")) {
+                pane.addRow(Row.Builder().setTitle(RadarWidget.formatDistance(d.optDouble("dist"))).addText(title).build())
+            } else {
+                pane.addRow(Row.Builder().setTitle(d.optString("text").ifEmpty { "Surveillance active" }).build())
+            }
             if (!d.isNull("limit")) {
                 pane.addRow(Row.Builder().setTitle("Limite").addText("${d.optInt("limit")} km/h").build())
             }
+            val speed = if (d.isNull("speed")) "–" else d.optInt("speed").toString()
+            pane.addRow(Row.Builder().setTitle("Vitesse").addText("$speed km/h").build())
         }
         pane.addAction(
             Action.Builder()

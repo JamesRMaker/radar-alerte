@@ -63,14 +63,12 @@ impl RadarKind {
     /// Libellé parlé, ex. « radar feu rouge ».
     pub fn spoken(self) -> &'static str {
         match self {
-            RadarKind::Fixe => "radar fixe",
-            RadarKind::Discriminant => "radar discriminant",
-            RadarKind::Tourelle => "radar tourelle",
-            RadarKind::Urbain => "radar urbain",
+            // Discriminant, tourelle, urbain… sont tous des radars fixes qui flashent : un seul libellé.
+            RadarKind::Fixe | RadarKind::Discriminant | RadarKind::Tourelle | RadarKind::Urbain => "radar fixe",
             RadarKind::Troncon => "radar tronçon",
             RadarKind::FeuRouge => "radar feu rouge",
             RadarKind::PassageNiveau => "radar passage à niveau",
-            RadarKind::Mobile => "radar mobile signalé",
+            RadarKind::Mobile => "radar mobile",
         }
     }
 

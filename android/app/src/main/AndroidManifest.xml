@@ -45,6 +45,19 @@
             android:name=".RadarService"
             android:exported="false"
             android:foregroundServiceType="location" />
+        <!-- Widget d'écran d'accueil -->
+        <receiver
+            android:name=".RadarWidget"
+            android:exported="false"
+            android:label="Radar Alerte">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/radar_widget_info" />
+        </receiver>
+
         <!-- Android 12+ : voiture associée connectée / déconnectée -->
         <service
             android:name=".CarPresenceService"

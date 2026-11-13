@@ -96,6 +96,8 @@ pub struct Status {
     pub limit_kmh: Option<u16>,
     pub section_avg_kmh: Option<f64>,
     pub section_remaining_m: Option<f64>,
+    /// Mode zone : distance restante avant la fin de la zone de danger.
+    pub zone_remaining_m: Option<f64>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -613,6 +615,19 @@ impl Engine {
                 }
                 st.section_remaining_m = Some((sec.length_m - sec.travelled_m).max(0.0));
             }
+        } else if self.zone_active {
+            // La zone se termine quand la dernière zone en cours se termine.
+            let from_tracks = self
+                .tracks
+                .iter()
+                .filter(|(_, t)| t.alerted)
+                .filter_map(|(k, t)| {
+                    let r = self.radar(*k)?;
+                    let d = distance_m(fix.lat, fix.lon, r.lat, r.lon);
+                    Some(if t.passed { (t.zone_after_m - d).max(0.0) } else { d + t.zone_after_m })
+                });
+            let from_section = self.section.as_ref().map(|s| (s.length_m - s.travelled_m).max(0.0));
+            st.zone_remaining_m = from_tracks.chain(from_section).max_by(|a, b| a.total_cmp(b));
         }
         st
     }

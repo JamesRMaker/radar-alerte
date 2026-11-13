@@ -86,8 +86,8 @@ pub fn status_text(st: &Status) -> String {
         return s;
     }
     if st.danger_zone {
-        return match st.limit_kmh {
-            Some(l) => format!("Zone de danger · {l} km/h"),
+        return match st.zone_remaining_m {
+            Some(m) => format!("Zone de danger · fin dans {}", short_distance(m)),
             None => "Zone de danger".into(),
         };
     }
@@ -126,13 +126,26 @@ pub fn update_json(u: &Update, mode: AlertMode, radars: usize, mobiles: usize) -
         )
     });
     let opt = |v: Option<f64>| v.map_or("null".to_string(), |x| format!("{}", x.round() as i64));
+    // Pour le widget : quoi (titre) et à quelle distance.
+    let st = &u.status;
+    let (title, dist) = if let (Some(_), Some(rem)) = (st.section_avg_kmh, st.section_remaining_m) {
+        ("Radar tronçon · fin dans".to_string(), Some(rem))
+    } else if let Some((kind, d, _)) = st.nearest {
+        (capitalize(kind.spoken()), Some(d))
+    } else if st.danger_zone {
+        ("Zone de danger · fin dans".to_string(), st.zone_remaining_m)
+    } else {
+        (String::new(), None)
+    };
     format!(
-        "{{\"gps\":{},\"speed\":{},\"limit\":{},\"danger\":{},\"text\":{},\"say\":[{}],\"beep\":{},\"radars\":{},\"mobiles\":{}}}",
+        "{{\"gps\":{},\"speed\":{},\"limit\":{},\"danger\":{},\"text\":{},\"title\":{},\"dist\":{},\"say\":[{}],\"beep\":{},\"radars\":{},\"mobiles\":{}}}",
         u.status.gps_ok,
         opt(u.status.speed_kmh),
         opt(u.status.limit_kmh.map(|l| l as f64)),
         u.status.danger_zone || u.status.nearest.is_some(),
         json_escape(&status_text(&u.status)),
+        json_escape(&title),
+        opt(dist),
         say.join(","),
         beep,
         radars,
