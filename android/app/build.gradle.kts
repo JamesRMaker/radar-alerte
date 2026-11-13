@@ -37,6 +37,11 @@ android {
     }
 }
 
+dependencies {
+    // Écran Android Auto
+    implementation("androidx.car.app:app:1.4.0")
+}
+
 // ---------------------------------------------------------------------------
 // Compilation du code Rust (rust/radar-jni) avec cargo-ndk avant chaque build.
 // Désactivable avec -PskipRust si les .so sont déjà dans src/main/jniLibs.

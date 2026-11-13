@@ -9,7 +9,15 @@
     <!-- Uniquement pour télécharger la liste officielle des radars fixes -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Démarrage automatique en voiture -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.REQUEST_COMPANION_RUN_IN_BACKGROUND" />
+    <uses-permission android:name="android.permission.REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND" />
+    <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
+
     <uses-feature android:name="android.hardware.location.gps" android:required="true" />
+    <uses-feature android:name="android.software.companion_device_setup" android:required="false" />
 
     <application
         android:allowBackup="false"
@@ -37,5 +45,40 @@
             android:name=".RadarService"
             android:exported="false"
             android:foregroundServiceType="location" />
+        <!-- Android 12+ : voiture associée connectée / déconnectée -->
+        <service
+            android:name=".CarPresenceService"
+            android:exported="true"
+            android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE">
+            <intent-filter>
+                <action android:name="android.companion.CompanionDeviceService" />
+            </intent-filter>
+        </service>
+
+        <!-- Android 8 à 11 : connexion Bluetooth de la voiture -->
+        <receiver
+            android:name=".CarBluetoothReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+                <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Android Auto -->
+        <service
+            android:name=".RadarCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.POI" />
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
     </application>
 </manifest>

@@ -24,6 +24,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import org.json.JSONObject
 import java.util.Locale
+import java.util.concurrent.CopyOnWriteArraySet
 
 /**
  * Service au premier plan : reçoit le GPS chaque seconde, transmet chaque position au
@@ -34,6 +35,8 @@ class RadarService : Service(), LocationListener {
 
     companion object {
         const val ACTION_STOP = "fr.radaralerte.STOP"
+        /** Démarrage déclenché par la voiture (Bluetooth / Android Auto) : arrêt auto à la déconnexion. */
+        const val EXTRA_AUTO = "auto"
         private const val CHANNEL_ID = "surveillance"
         private const val NOTIF_ID = 1
 
@@ -42,8 +45,11 @@ class RadarService : Service(), LocationListener {
         @Volatile var lastLocation: Location? = null
             private set
 
-        /** Appelé sur le thread principal à chaque mise à jour (JSON du moteur). */
-        var onUpdate: ((JSONObject) -> Unit)? = null
+        @Volatile var autoStarted = false
+            private set
+
+        /** Écouteurs (téléphone, écran Android Auto) appelés sur le thread principal à chaque mise à jour. */
+        val listeners = CopyOnWriteArraySet<(JSONObject) -> Unit>()
     }
 
     private lateinit var locationManager: LocationManager
@@ -88,12 +94,21 @@ class RadarService : Service(), LocationListener {
             stopSelf()
             return START_NOT_STICKY
         }
+        if (!running) autoStarted = intent?.getBooleanExtra(EXTRA_AUTO, false) == true
         val notif = buildNotification("Recherche du signal GPS…")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-        } else {
-            startForeground(NOTIF_ID, notif)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            } else {
+                startForeground(NOTIF_ID, notif)
+            }
+        } catch (e: Exception) {
+            // Android refuse un démarrage en arrière-plan : on propose un démarrage d'un appui.
+            CarAutoStart.notifyTapToStart(this)
+            stopSelf()
+            return START_NOT_STICKY
         }
+        CarAutoStart.cancelPrompt(this)
         RadarCore.ensureLoaded(this)
         RadarCore.resetSession()
         try {
@@ -116,7 +131,9 @@ class RadarService : Service(), LocationListener {
         tts?.shutdown()
         tone?.release()
         releaseFocus()
-        onUpdate?.invoke(JSONObject().put("text", "Surveillance arrêtée").put("stopped", true))
+        autoStarted = false
+        val stopped = JSONObject().put("text", "Surveillance arrêtée").put("stopped", true)
+        listeners.forEach { it(stopped) }
         super.onDestroy()
     }
 
@@ -146,7 +163,7 @@ class RadarService : Service(), LocationListener {
             lastNotifText = text
             getSystemService(NotificationManager::class.java).notify(NOTIF_ID, buildNotification(text))
         }
-        onUpdate?.invoke(data)
+        listeners.forEach { it(data) }
     }
 
     override fun onProviderEnabled(provider: String) {}

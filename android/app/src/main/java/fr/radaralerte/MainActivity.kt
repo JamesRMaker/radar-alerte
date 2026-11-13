@@ -40,6 +40,7 @@ class MainActivity : Activity() {
     private lateinit var infoView: TextView
     private var ringColor = Palette.IDLE
     private var ringAnim: ValueAnimator? = null
+    private val listener: (JSONObject) -> Unit = { showUpdate(it) }
 
     private val prefs by lazy { getSharedPreferences(RadarCore.PREFS, Context.MODE_PRIVATE) }
     private val precise get() = prefs.getBoolean(RadarCore.PREF_PRECISE, false)
@@ -57,13 +58,13 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        RadarService.onUpdate = { showUpdate(it) }
+        RadarService.listeners.add(listener)
         refreshIdleState()
         refreshInfo()
     }
 
     override fun onPause() {
-        RadarService.onUpdate = null
+        RadarService.listeners.remove(listener)
         super.onPause()
     }
 

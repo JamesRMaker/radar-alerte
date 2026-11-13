@@ -5,8 +5,15 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.bluetooth.BluetoothDevice
+import android.companion.AssociationInfo
+import android.companion.AssociationRequest
+import android.companion.BluetoothDeviceFilter
+import android.companion.CompanionDeviceManager
+import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.os.Build
 import android.location.LocationManager
 import android.os.Bundle
 import android.view.Gravity
@@ -22,6 +29,9 @@ class SettingsActivity : Activity() {
 
     private companion object {
         const val REQ_IMPORT = 2
+        const val REQ_CAR = 3
+        const val REQ_FG_LOCATION = 4
+        const val REQ_BG_LOCATION = 5
         val TTL_CHOICES = intArrayOf(60, 120, 180, 360, 0) // minutes, 0 = permanent
         val MARGIN_CHOICES = intArrayOf(0, 3, 5, 8)
     }
@@ -32,6 +42,7 @@ class SettingsActivity : Activity() {
     private lateinit var ttlSub: TextView
     private lateinit var marginSub: TextView
     private lateinit var mobilesSub: TextView
+    private lateinit var carSub: TextView
     private lateinit var preciseSwitch: Switch
     private var updating = false
 
@@ -97,6 +108,13 @@ class SettingsActivity : Activity() {
         content.addView(sectionTitle("Alertes"))
         content.addView(card(preciseRow, marginRow))
 
+        // En voiture
+        val (carRow, cSub) = settingRow("Démarrage automatique", "") { onCarRowClicked() }
+        val (autoRow, _) = settingRow("Afficher sur Android Auto", "Comment activer l'écran de la voiture") { showAndroidAutoHelp() }
+        carSub = cSub
+        content.addView(sectionTitle("En voiture"))
+        content.addView(card(carRow, autoRow))
+
         // Radars signalés
         val (ttlRow, tSub) = settingRow("Durée d'un radar signalé", "") { cycleTtl() }
         val (removeRow, rSub) = settingRow("Retirer le radar signalé le plus proche", "") { removeNearest() }
@@ -137,6 +155,174 @@ class SettingsActivity : Activity() {
         mobilesSub.text = if (m == 0) "Aucun radar signalé" else "$m radar(s) signalé(s) en mémoire"
         mobilesSub.visibility = android.view.View.VISIBLE
         updateSub.visibility = android.view.View.VISIBLE
+        val car = CarAutoStart.carName(this)
+        carSub.text = when {
+            car == null -> "Désactivé · appuyez pour choisir votre voiture"
+            Build.VERSION.SDK_INT >= 30 && !CarAutoStart.hasBackgroundLocation(this) ->
+                "$car · autorisation « Toujours » manquante"
+            else -> "Activé avec $car"
+        }
+        carSub.visibility = android.view.View.VISIBLE
+    }
+
+    // ------------------------------------------------------------------ voiture
+
+    private fun onCarRowClicked() {
+        val car = CarAutoStart.carName(this)
+        if (car == null) {
+            AlertDialog.Builder(this)
+                .setTitle("Démarrage automatique")
+                .setMessage(
+                    "Choisissez votre voiture dans la liste des appareils Bluetooth. La surveillance " +
+                        "démarrera toute seule quand le téléphone s'y connecte (avec ou sans Android Auto) " +
+                        "et s'arrêtera quand vous la quittez.\n\nLe Bluetooth du téléphone et de la voiture " +
+                        "doit être allumé."
+                )
+                .setPositiveButton("Choisir ma voiture") { _, _ -> chooseCar() }
+                .setNegativeButton("Annuler", null)
+                .show()
+            return
+        }
+        if (Build.VERSION.SDK_INT >= 30 && !CarAutoStart.hasBackgroundLocation(this)) {
+            askBackgroundLocation()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(car)
+            .setMessage("La surveillance démarre automatiquement quand le téléphone se connecte à cette voiture.")
+            .setPositiveButton("Changer de voiture") { _, _ -> removeCar(); chooseCar() }
+            .setNegativeButton("Désactiver") { _, _ -> removeCar(); refresh() }
+            .setNeutralButton("Fermer", null)
+            .show()
+    }
+
+    private fun chooseCar() {
+        val cdm = getSystemService(CompanionDeviceManager::class.java)
+            ?: return toast("Fonction indisponible sur ce téléphone")
+        val request = AssociationRequest.Builder()
+            .addDeviceFilter(BluetoothDeviceFilter.Builder().build())
+            .setSingleDevice(false)
+            .build()
+        val launch = { sender: IntentSender ->
+            try {
+                startIntentSenderForResult(sender, REQ_CAR, null, 0, 0, 0)
+            } catch (e: Exception) {
+                toast("Impossible d'ouvrir la liste des appareils")
+            }
+        }
+        try {
+            cdm.associate(request, object : CompanionDeviceManager.Callback() {
+                @Deprecated("Deprecated in Java")
+                override fun onDeviceFound(chooserLauncher: IntentSender) { launch(chooserLauncher) }
+
+                override fun onAssociationPending(intentSender: IntentSender) { launch(intentSender) }
+
+                override fun onAssociationCreated(associationInfo: AssociationInfo) {
+                    val mac = associationInfo.deviceMacAddress?.toString()?.uppercase() ?: return
+                    saveCar(mac, associationInfo.displayName?.toString() ?: "Ma voiture")
+                }
+
+                override fun onFailure(error: CharSequence?) {
+                    toast("Aucune voiture choisie")
+                }
+            }, null)
+        } catch (e: Exception) {
+            toast("Fonction indisponible sur ce téléphone")
+        }
+    }
+
+    private fun saveCar(address: String, name: String) {
+        if (CarAutoStart.carAddress(this).equals(address, ignoreCase = true)) return
+        prefs.edit()
+            .putString(CarAutoStart.PREF_CAR_ADDRESS, address)
+            .putString(CarAutoStart.PREF_CAR_NAME, name)
+            .apply()
+        if (Build.VERSION.SDK_INT >= 31) {
+            try {
+                @Suppress("DEPRECATION")
+                getSystemService(CompanionDeviceManager::class.java)?.startObservingDevicePresence(address)
+            } catch (_: Exception) {}
+        }
+        refresh()
+        askBackgroundLocation()
+    }
+
+    private fun removeCar() {
+        val address = CarAutoStart.carAddress(this) ?: return
+        val cdm = getSystemService(CompanionDeviceManager::class.java)
+        if (Build.VERSION.SDK_INT >= 31) {
+            try {
+                @Suppress("DEPRECATION")
+                cdm?.stopObservingDevicePresence(address)
+            } catch (_: Exception) {}
+        }
+        try {
+            @Suppress("DEPRECATION")
+            cdm?.disassociate(address)
+        } catch (_: Exception) {}
+        prefs.edit().remove(CarAutoStart.PREF_CAR_ADDRESS).remove(CarAutoStart.PREF_CAR_NAME).apply()
+    }
+
+    private fun askBackgroundLocation() {
+        val fine = Manifest.permission.ACCESS_FINE_LOCATION
+        if (checkSelfPermission(fine) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(fine, Manifest.permission.ACCESS_COARSE_LOCATION), REQ_FG_LOCATION)
+            return
+        }
+        if (CarAutoStart.hasBackgroundLocation(this)) {
+            toast("Démarrage automatique activé")
+            refresh()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Une dernière autorisation")
+            .setMessage(
+                "Pour démarrer toute seule quand vous montez en voiture, l'appli doit pouvoir lire votre " +
+                    "position même quand elle est fermée.\n\nSur l'écran suivant, choisissez " +
+                    "« Toujours autoriser »."
+            )
+            .setPositiveButton("Continuer") { _, _ ->
+                requestPermissions(arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION), REQ_BG_LOCATION)
+            }
+            .setNegativeButton("Plus tard", null)
+            .show()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            REQ_FG_LOCATION ->
+                if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    askBackgroundLocation()
+                }
+            REQ_BG_LOCATION -> {
+                if (CarAutoStart.hasBackgroundLocation(this)) toast("Démarrage automatique activé")
+                refresh()
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refresh()
+    }
+
+    private fun showAndroidAutoHelp() {
+        AlertDialog.Builder(this)
+            .setTitle("Radar Alerte sur Android Auto")
+            .setMessage(
+                "Comme l'appli ne vient pas du Play Store, Android Auto la cache tant que vous n'avez pas " +
+                    "activé une option (à faire une seule fois) :\n\n" +
+                    "1. Ouvrez les réglages d'Android Auto sur le téléphone (Paramètres → Appareils connectés → " +
+                    "Android Auto, ou recherchez « Android Auto » dans les Paramètres).\n\n" +
+                    "2. Tout en bas, appuyez 10 fois sur « Version », puis acceptez : le mode développeur s'active.\n\n" +
+                    "3. Menu ⋮ en haut à droite → « Paramètres pour les développeurs » → cochez « Sources inconnues ».\n\n" +
+                    "4. Rebranchez le téléphone à la voiture : Radar Alerte apparaît dans les applis. Si ce n'est " +
+                    "pas le cas : réglages Android Auto → « Personnaliser le lanceur d'applications ».\n\n" +
+                    "Ouvrir Radar Alerte sur l'écran de la voiture démarre aussi la surveillance."
+            )
+            .setPositiveButton("Compris", null)
+            .show()
     }
 
     private fun update() {
@@ -160,10 +346,27 @@ class SettingsActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_CAR) {
+            if (resultCode == Activity.RESULT_OK && data != null) onCarChosen(data)
+            return
+        }
         val uri = data?.data ?: return
         if (requestCode != REQ_IMPORT || resultCode != Activity.RESULT_OK) return
         updateSub.text = "Import…"
         RadarDb.importFile(this, uri) { msg -> toast(msg); refresh() }
+    }
+
+    private fun onCarChosen(data: Intent) {
+        if (Build.VERSION.SDK_INT >= 33) {
+            val info = data.getParcelableExtra(CompanionDeviceManager.EXTRA_ASSOCIATION, AssociationInfo::class.java)
+            val mac = info?.deviceMacAddress?.toString()?.uppercase() ?: return
+            saveCar(mac, info.displayName?.toString() ?: "Ma voiture")
+        } else {
+            @Suppress("DEPRECATION")
+            val device: BluetoothDevice = data.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE) ?: return
+            val name = try { device.name } catch (_: SecurityException) { null } ?: "Ma voiture"
+            saveCar(device.address, name)
+        }
     }
 
     private fun cycleTtl() {
