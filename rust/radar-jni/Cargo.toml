@@ -1,0 +1,20 @@
+[package]
+name = "radar-jni"
+version = "1.0.0"
+edition = "2021"
+description = "Pont JNI entre l'appli Android et radar-core"
+
+[lib]
+# Produit libradar_alerte.so, chargé par System.loadLibrary("radar_alerte")
+name = "radar_alerte"
+crate-type = ["cdylib"]
+
+[dependencies]
+radar-core = { path = "../radar-core" }
+jni = "0.21"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

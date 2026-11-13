@@ -1,0 +1,7 @@
+[package]
+name = "radar-core"
+version = "1.0.0"
+edition = "2021"
+description = "Cœur de Radar Alerte : base de radars, géométrie et moteur d'alerte (sans dépendance)"
+
+[dependencies]
