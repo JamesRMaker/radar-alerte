@@ -87,8 +87,8 @@ pub fn status_text(st: &Status) -> String {
     }
     if st.danger_zone {
         return match st.limit_kmh {
-            Some(l) => format!("⚠ ZONE DE DANGER · {l} km/h"),
-            None => "⚠ ZONE DE DANGER".into(),
+            Some(l) => format!("Zone de danger · {l} km/h"),
+            None => "Zone de danger".into(),
         };
     }
     "Aucun radar à l'approche".into()

@@ -13,9 +13,10 @@
 
     <application
         android:allowBackup="false"
-        android:icon="@android:drawable/ic_menu_mylocation"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:label="Radar Alerte"
-        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        android:theme="@style/AppTheme">
 
         <activity
             android:name=".MainActivity"
@@ -26,6 +27,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity" />
 
         <service
             android:name=".RadarService"

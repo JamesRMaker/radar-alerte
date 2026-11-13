@@ -1,74 +1,65 @@
 package fr.radaralerte
 
 import android.Manifest
+import android.animation.ValueAnimator
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.location.Location
 import android.location.LocationManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
-import android.widget.Button
+import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
-import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
+import java.util.Locale
 
-/** Écran principal : démarrer/arrêter, signaler un radar mobile, mettre à jour la base, réglages. */
+/** Écran principal, épuré : vitesse, état, un bouton. Le reste est dans les réglages. */
 class MainActivity : Activity() {
 
     private companion object {
         const val REQ_PERMS = 1
-        const val REQ_IMPORT = 2
-        val TTL_CHOICES = intArrayOf(60, 120, 180, 360, 0) // minutes, 0 = permanent
-        val MARGIN_CHOICES = intArrayOf(0, 3, 5, 8)
-        const val BG = 0xFF101418.toInt()
-        const val BG_DANGER = 0xFFB71C1C.toInt()
-        const val BG_NEAR = 0xFFE65100.toInt()
     }
 
-    private lateinit var root: LinearLayout
+    private lateinit var ring: GradientDrawable
     private lateinit var speedView: TextView
+    private lateinit var limitSign: TextView
     private lateinit var statusView: TextView
+    private lateinit var modeView: TextView
+    private lateinit var reportButton: TextView
+    private lateinit var startButton: TextView
     private lateinit var infoView: TextView
-    private lateinit var startButton: Button
-    private lateinit var ttlButton: Button
-    private lateinit var marginButton: Button
-    private lateinit var preciseSwitch: Switch
+    private var ringColor = Palette.IDLE
+    private var ringAnim: ValueAnimator? = null
 
     private val prefs by lazy { getSharedPreferences(RadarCore.PREFS, Context.MODE_PRIVATE) }
+    private val precise get() = prefs.getBoolean(RadarCore.PREF_PRECISE, false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        darkSystemBars()
         RadarCore.ensureLoaded(this)
-        buildUi()
-        refreshInfo()
+        setContentView(buildUi())
         if (!RadarCore.radarsFile(this).exists()) {
-            AlertDialog.Builder(this)
-                .setTitle("Base de radars vide")
-                .setMessage("Télécharger maintenant la liste officielle des radars fixes (data.gouv.fr, ~170 Ko) ?")
-                .setPositiveButton("Télécharger") { _, _ -> downloadRadars() }
-                .setNegativeButton("Plus tard", null)
-                .show()
+            infoView.text = "Téléchargement de la base de radars…"
+            RadarDb.download(this) { msg -> toast(msg); refreshInfo() }
         }
     }
 
     override fun onResume() {
         super.onResume()
         RadarService.onUpdate = { showUpdate(it) }
-        refreshStartButton()
+        refreshIdleState()
+        refreshInfo()
     }
 
     override fun onPause() {
@@ -78,102 +69,159 @@ class MainActivity : Activity() {
 
     // ------------------------------------------------------------------ interface
 
-    private fun buildUi() {
-        val pad = dp(16)
-        root = LinearLayout(this).apply {
+    private fun buildUi(): View {
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-            setBackgroundColor(BG)
+            setBackgroundColor(Palette.BG)
+            padForSystemBars(dp(20))
         }
-        fun text(size: Float, bold: Boolean = false) = TextView(this).apply {
-            textSize = size
-            setTextColor(Color.WHITE)
+
+        // Barre du haut : titre + réglages
+        val title = label(20f, font = Fonts.medium).apply { text = "Radar Alerte" }
+        val gear = ImageView(this).apply {
+            setImageResource(R.drawable.ic_settings)
+            setColorFilter(Palette.MUTED)
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            background = ripple(null, oval(Color.WHITE))
+            contentDescription = "Réglages"
+            setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
+        }
+        val topBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(title, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(gear, LinearLayout.LayoutParams(dp(44), dp(44)))
+        }
+
+        // Cadran de vitesse
+        ring = oval(Color.TRANSPARENT, Palette.IDLE, dp(10))
+        speedView = label(76f, font = Fonts.light).apply { text = "–"; gravity = Gravity.CENTER }
+        val unit = label(15f, Palette.MUTED).apply { text = "km/h"; gravity = Gravity.CENTER }
+        val speedColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            if (bold) setTypeface(typeface, Typeface.BOLD)
-            setPadding(0, dp(6), 0, dp(6))
+            addView(speedView)
+            addView(unit)
         }
-        fun button(label: String, onClick: () -> Unit) = Button(this).apply {
-            text = label
-            isAllCaps = false
-            textSize = 17f
-            setOnClickListener { onClick() }
+        limitSign = label(24f, Color.BLACK, Fonts.medium).apply {
+            gravity = Gravity.CENTER
+            background = oval(Color.WHITE, Palette.DANGER, dp(6))
+            visibility = View.GONE
         }
-
-        speedView = text(64f, bold = true).apply { text = "– km/h" }
-        statusView = text(22f, bold = true).apply { text = "Surveillance arrêtée" }
-        infoView = text(14f).apply { setTextColor(0xFFB0BEC5.toInt()) }
-        startButton = button("▶  Démarrer la surveillance") { toggleService() }
-        val report = button("📍  Signaler un radar mobile ici") { reportMobile() }
-        val remove = button("✖  Radar mobile parti (supprimer le plus proche)") { removeMobile() }
-        val update = button("⬇  Mettre à jour les radars fixes") { downloadRadars() }
-        val importBtn = button("📂  Importer un fichier CSV de radars") { importCsv() }
-        ttlButton = button("") { cycleTtl() }
-        marginButton = button("") { cycleMargin() }
-        preciseSwitch = Switch(this).apply {
-            text = "Mode précis (type et distance du radar)"
-            setTextColor(Color.WHITE)
-            textSize = 16f
-            setPadding(0, dp(12), 0, dp(12))
-            isChecked = prefs.getBoolean(RadarCore.PREF_PRECISE, false)
-            setOnCheckedChangeListener { _, checked -> onPreciseToggled(checked) }
-        }
-        val legal = text(12f).apply {
-            setTextColor(0xFF90A4AE.toInt())
-            gravity = Gravity.START
-            text = "Par défaut, l'appli annonce des « zones de danger » (500 m en ville, 2 km sur route, " +
-                "4 km sur autoroute) sans révéler l'emplacement exact des radars, comme l'exige la loi française " +
-                "pour les assistants d'aide à la conduite. Le mode précis est destiné à un usage hors de France."
+        val dial = FrameLayout(this).apply {
+            background = ring
+            addView(speedColumn, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+            addView(limitSign, FrameLayout.LayoutParams(dp(68), dp(68), Gravity.TOP or Gravity.END))
         }
 
-        listOf(speedView, statusView, startButton, report, remove).forEach { root.addView(it) }
-        root.addView(spacer())
-        listOf(infoView, update, importBtn, ttlButton, marginButton, preciseSwitch, legal).forEach { root.addView(it) }
-        setContentView(ScrollView(this).apply { setBackgroundColor(BG); addView(root) })
-        refreshSettingsLabels()
+        statusView = label(20f, font = Fonts.medium).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(32), dp(8), 0)
+        }
+        modeView = label(14f, Palette.MUTED).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, 0)
+        }
+        val center = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            addView(dial, LinearLayout.LayoutParams(dp(250), dp(250)))
+            addView(statusView, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            addView(modeView, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        }
+
+        // Bas de l'écran
+        reportButton = label(16f, Palette.ACCENT, Fonts.medium).apply {
+            text = "Signaler un radar ici"
+            gravity = Gravity.CENTER
+            setPadding(0, dp(14), 0, dp(14))
+            background = ripple(null, rounded(Color.WHITE, dp(24).toFloat()))
+            setOnClickListener { reportMobile() }
+        }
+        startButton = label(18f, Color.WHITE, Fonts.medium).apply {
+            gravity = Gravity.CENTER
+            setOnClickListener { toggleService() }
+        }
+        infoView = label(13f, Palette.MUTED).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, dp(16), 0, 0)
+        }
+
+        root.addView(topBar)
+        root.addView(center, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(reportButton, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(8)
+        })
+        root.addView(startButton, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(60)))
+        root.addView(infoView)
+        return root
     }
 
-    private fun spacer() = View(this).apply {
-        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(24))
+    private fun setRingColor(target: Int) {
+        if (target == ringColor) return
+        ringAnim?.cancel()
+        ringAnim = ValueAnimator.ofArgb(ringColor, target).apply {
+            duration = 350
+            addUpdateListener {
+                val c = it.animatedValue as Int
+                ring.setStroke(dp(10), c)
+                ringColor = c
+            }
+            start()
+        }
     }
 
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
-
-    private fun showUpdate(data: JSONObject) {
-        if (data.optBoolean("stopped")) {
-            speedView.text = "– km/h"
-            statusView.text = data.optString("text")
-            root.setBackgroundColor(BG)
-            refreshStartButton()
-            return
+    private fun refreshIdleState() {
+        val running = RadarService.running
+        startButton.text = if (running) "Arrêter" else "Démarrer"
+        startButton.background = ripple(
+            if (running) rounded(Palette.SURFACE, dp(30).toFloat(), Palette.DIVIDER, dp(1))
+            else rounded(Palette.ACCENT, dp(30).toFloat())
+        )
+        reportButton.visibility = if (running) View.VISIBLE else View.INVISIBLE
+        modeView.text = if (precise) "Mode précis" else "Zones de danger"
+        if (running) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            if (statusView.text.isNullOrEmpty()) statusView.text = "Recherche du GPS…"
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            speedView.text = "–"
+            limitSign.visibility = View.GONE
+            statusView.text = "Prêt"
+            setRingColor(Palette.IDLE)
         }
-        speedView.text = if (data.isNull("speed")) "– km/h" else "${data.optInt("speed")} km/h"
-        statusView.text = data.optString("text")
-        val bg = when {
-            !data.optBoolean("danger") -> BG
-            prefs.getBoolean(RadarCore.PREF_PRECISE, false) -> BG_NEAR
-            else -> BG_DANGER
-        }
-        root.setBackgroundColor(bg)
-        infoView.text = "Base : ${data.optInt("radars")} radars fixes · ${data.optInt("mobiles")} mobiles signalés"
     }
 
     private fun refreshInfo() {
-        val s = JSONObject(RadarCore.stats())
-        val f = RadarCore.radarsFile(this)
-        val date = if (f.exists())
-            java.text.DateFormat.getDateInstance().format(java.util.Date(f.lastModified())) else "jamais"
-        infoView.text = "Base : ${s.optInt("radars")} radars fixes (mise à jour : $date)\n" +
-            "${s.optInt("mobiles")} radars mobiles signalés"
+        val n = RadarDb.radarCount()
+        infoView.text = if (n == 0) "Aucune base de radars · voir les réglages"
+        else "${String.format(Locale.FRANCE, "%,d", n)} radars · base du ${RadarDb.lastUpdate(this)}"
     }
 
-    private fun refreshStartButton() {
-        startButton.text = if (RadarService.running) "■  Arrêter la surveillance" else "▶  Démarrer la surveillance"
-    }
-
-    private fun refreshSettingsLabels() {
-        val ttl = prefs.getInt(RadarCore.PREF_TTL_MIN, 180)
-        ttlButton.text = "⏱  Durée d'un radar mobile : " + if (ttl == 0) "permanent" else "${ttl / 60} h"
-        marginButton.text = "⚙  Alerte de vitesse au-delà de la limite +${prefs.getInt(RadarCore.PREF_MARGIN, 3)} km/h"
+    private fun showUpdate(data: JSONObject) {
+        if (data.optBoolean("stopped")) {
+            refreshIdleState()
+            return
+        }
+        speedView.text = if (data.isNull("speed")) "–" else data.optInt("speed").toString()
+        if (data.isNull("limit")) {
+            limitSign.visibility = View.GONE
+        } else {
+            limitSign.text = data.optInt("limit").toString()
+            limitSign.visibility = View.VISIBLE
+        }
+        statusView.text = data.optString("text")
+        setRingColor(
+            when {
+                !data.optBoolean("gps") -> Palette.WARN
+                data.optBoolean("danger") -> if (precise) Palette.WARN else Palette.DANGER
+                else -> Palette.OK
+            }
+        )
     }
 
     // ------------------------------------------------------------------ actions
@@ -181,7 +229,7 @@ class MainActivity : Activity() {
     private fun toggleService() {
         if (RadarService.running) {
             startService(Intent(this, RadarService::class.java).setAction(RadarService.ACTION_STOP))
-            startButton.postDelayed({ refreshStartButton() }, 300)
+            startButton.postDelayed({ refreshIdleState() }, 300)
             return
         }
         val needed = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -196,17 +244,15 @@ class MainActivity : Activity() {
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             startRadarService()
         } else {
-            toast("La localisation précise est indispensable pour détecter les radars.")
+            toast("La localisation précise est nécessaire pour détecter les radars.")
         }
     }
 
     private fun startRadarService() {
-        if (JSONObject(RadarCore.stats()).optInt("radars") == 0) {
-            toast("Attention : aucune base de radars fixes chargée. Seuls les radars mobiles signalés seront annoncés.")
-        }
+        if (RadarDb.radarCount() == 0) toast("Aucune base de radars fixes : mettez-la à jour dans les réglages.")
         startForegroundService(Intent(this, RadarService::class.java))
-        statusView.text = "Recherche du signal GPS…"
-        startButton.postDelayed({ refreshStartButton() }, 300)
+        statusView.text = "Recherche du GPS…"
+        startButton.postDelayed({ refreshIdleState() }, 300)
     }
 
     private fun currentLocation(): Location? {
@@ -216,120 +262,16 @@ class MainActivity : Activity() {
         return try {
             lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
                 ?.takeIf { System.currentTimeMillis() - it.time < 60_000 }
-        } catch (e: SecurityException) { null }
+        } catch (e: SecurityException) {
+            null
+        }
     }
 
     private fun reportMobile() {
-        val loc = currentLocation() ?: return toast("Position GPS inconnue : démarrez la surveillance d'abord.")
-        val n = RadarCore.reportMobile(loc.latitude, loc.longitude, System.currentTimeMillis())
-        toast("Radar mobile enregistré ($n actif(s))")
-        refreshInfo()
+        val loc = currentLocation() ?: return toast("Position GPS pas encore connue.")
+        RadarCore.reportMobile(loc.latitude, loc.longitude, System.currentTimeMillis())
+        toast("Radar signalé")
     }
 
-    private fun removeMobile() {
-        val loc = currentLocation() ?: return toast("Position GPS inconnue.")
-        val ok = RadarCore.removeNearestMobile(loc.latitude, loc.longitude, 500.0)
-        toast(if (ok) "Radar mobile supprimé" else "Aucun radar mobile signalé à moins de 500 m")
-        refreshInfo()
-    }
-
-    private fun cycleTtl() {
-        val cur = prefs.getInt(RadarCore.PREF_TTL_MIN, 180)
-        val next = TTL_CHOICES[(TTL_CHOICES.indexOf(cur) + 1).mod(TTL_CHOICES.size)]
-        prefs.edit().putInt(RadarCore.PREF_TTL_MIN, next).apply()
-        RadarCore.applySettings(this)
-        refreshSettingsLabels()
-    }
-
-    private fun cycleMargin() {
-        val cur = prefs.getInt(RadarCore.PREF_MARGIN, 3)
-        val next = MARGIN_CHOICES[(MARGIN_CHOICES.indexOf(cur) + 1).mod(MARGIN_CHOICES.size)]
-        prefs.edit().putInt(RadarCore.PREF_MARGIN, next).apply()
-        RadarCore.applySettings(this)
-        refreshSettingsLabels()
-    }
-
-    private fun onPreciseToggled(checked: Boolean) {
-        if (!checked) {
-            prefs.edit().putBoolean(RadarCore.PREF_PRECISE, false).apply()
-            RadarCore.applySettings(this)
-            return
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Mode précis")
-            .setMessage(
-                "En France, signaler l'emplacement précis des radars pendant la conduite est interdit " +
-                    "(article R413-15 du Code de la route : jusqu'à 1 500 € d'amende, 6 points et confiscation). " +
-                    "N'activez ce mode que si vous roulez dans un pays où c'est autorisé."
-            )
-            .setPositiveButton("Activer") { _, _ ->
-                prefs.edit().putBoolean(RadarCore.PREF_PRECISE, true).apply()
-                RadarCore.applySettings(this)
-            }
-            .setNegativeButton("Annuler") { _, _ -> preciseSwitch.isChecked = false }
-            .setOnCancelListener { preciseSwitch.isChecked = false }
-            .show()
-    }
-
-    // ------------------------------------------------------------------ base de radars
-
-    private fun downloadRadars() {
-        toast("Téléchargement de la liste des radars…")
-        Thread {
-            val tmp = File(filesDir, "radars_download.tmp")
-            val result = try {
-                val conn = URL(RadarCore.RADARS_URL).openConnection() as HttpURLConnection
-                conn.connectTimeout = 15_000
-                conn.readTimeout = 30_000
-                conn.instanceFollowRedirects = true
-                conn.setRequestProperty("User-Agent", "RadarAlerte/1.0 (Android)")
-                if (conn.responseCode !in 200..299) throw Exception("HTTP ${conn.responseCode}")
-                conn.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
-                conn.disconnect()
-                installRadarFile(tmp)
-            } catch (e: Exception) {
-                "Échec du téléchargement : ${e.message}. Vous pouvez importer un fichier CSV à la place."
-            }
-            runOnUiThread { toast(result); refreshInfo() }
-        }.start()
-    }
-
-    private fun importCsv() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "*/*"
-            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/octet-stream"))
-        }
-        startActivityForResult(intent, REQ_IMPORT)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        val uri: Uri = data?.data ?: return
-        if (requestCode != REQ_IMPORT || resultCode != Activity.RESULT_OK) return
-        Thread {
-            val tmp = File(filesDir, "radars_import.tmp")
-            val result = try {
-                contentResolver.openInputStream(uri)!!.use { input -> tmp.outputStream().use { input.copyTo(it) } }
-                installRadarFile(tmp)
-            } catch (e: Exception) {
-                "Import impossible : ${e.message}"
-            }
-            runOnUiThread { toast(result); refreshInfo() }
-        }.start()
-    }
-
-    /** Charge le fichier dans le moteur ; ne remplace l'ancienne base que s'il est valide. */
-    private fun installRadarFile(tmp: File): String {
-        val n = RadarCore.loadRadars(tmp.absolutePath)
-        return if (n > 0) {
-            tmp.renameTo(RadarCore.radarsFile(this))
-            "$n radars chargés"
-        } else {
-            tmp.delete() // l'ancienne base reste en place dans le moteur
-            "Fichier non reconnu (colonnes latitude/longitude introuvables)"
-        }
-    }
-
-    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 }

@@ -202,7 +202,8 @@ class RadarService : Service(), LocationListener {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(R.drawable.ic_notif)
+            .setColor(Palette.ACCENT)
             .setContentTitle("Radar Alerte")
             .setContentText(text)
             .setOngoing(true)
