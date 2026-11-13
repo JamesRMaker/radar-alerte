@@ -205,7 +205,7 @@ fn json_valide() {
         let u = e.update(fix(s));
         let j = crate::output::update_json(&u, e.config.mode, 1, 0);
         assert!(j.starts_with('{') && j.ends_with('}'));
-        if j.contains("Zone de danger") {
+        if j.contains("\"say\":[\"Zone de danger") {
             saw_zone = true;
             assert!(j.contains("\"beep\":true"));
             assert!(j.contains("\"limit\":50"));
