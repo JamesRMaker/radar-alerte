@@ -31,8 +31,21 @@ jobs:
         working-directory: rust/radar-core
         run: cargo test
 
+      - name: Clé de signature (secrets du dépôt)
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Ajoutez les secrets KEYSTORE_B64 et KEYSTORE_PASSWORD (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | tr -d ' \n\r' | base64 -d > "$RUNNER_TEMP/radar.jks"
+          echo "RADAR_KEYSTORE=$RUNNER_TEMP/radar.jks" >> "$GITHUB_ENV"
+
       - name: Compilation de l'APK
         working-directory: android
+        env:
+          RADAR_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           export ANDROID_NDK_HOME="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_ROOT}"
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"

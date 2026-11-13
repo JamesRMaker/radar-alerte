@@ -135,6 +135,7 @@ class RadarService : Service(), LocationListener {
         val stopped = JSONObject().put("text", "Surveillance arrêtée").put("stopped", true)
         listeners.forEach { it(stopped) }
         RadarWidget.render(this, null)
+        CarAlerts.cancel(this)
         super.onDestroy()
     }
 
@@ -166,6 +167,7 @@ class RadarService : Service(), LocationListener {
         }
         listeners.forEach { it(data) }
         RadarWidget.render(this, data)
+        CarAlerts.onUpdate(this, data)
     }
 
     override fun onProviderEnabled(provider: String) {}

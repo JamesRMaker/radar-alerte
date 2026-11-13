@@ -5,6 +5,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val radarKeystore: String? = System.getenv("RADAR_KEYSTORE")
+
 android {
     namespace = "fr.radaralerte"
     compileSdk = 35
@@ -20,11 +22,24 @@ android {
         }
     }
 
+    signingConfigs {
+        if (radarKeystore != null) {
+            create("radar") {
+                storeFile = file(radarKeystore)
+                storePassword = System.getenv("RADAR_KEYSTORE_PASSWORD")
+                keyAlias = "radaralerte"
+                keyPassword = System.getenv("RADAR_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Signée avec la clé de debug pour pouvoir l'installer directement sur votre téléphone.
-            signingConfig = signingConfigs.getByName("debug")
+            // Clé fixe fournie par les secrets GitHub (KEYSTORE_B64 / KEYSTORE_PASSWORD) : chaque
+            // version s'installe par-dessus la précédente. Sans elle (build local), clé de debug.
+            signingConfig = if (radarKeystore != null) signingConfigs.getByName("radar")
+            else signingConfigs.getByName("debug")
         }
     }
 
