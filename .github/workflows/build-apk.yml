@@ -6,6 +6,7 @@ name: Fabriquer l'APK
 on:
   push:
     branches: [main]
+    paths-ignore: ["anglais/**", ".github/workflows/anglais-*.yml"]
   workflow_dispatch:
 
 permissions:
