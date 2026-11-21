@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bulle de dialogue blanche avec deux lignes de texte -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M36,34h36a8,8 0,0 1,8 8v20a8,8 0,0 1,-8 8h-20l-10,9v-9h-6a8,8 0,0 1,-8 -8v-20a8,8 0,0 1,8 -8z" />
+    <path android:fillColor="#006BE6"
+        android:pathData="M38,45h32a2.5,2.5 0,0 1,0 5h-32a2.5,2.5 0,0 1,0 -5z M38,55h20a2.5,2.5 0,0 1,0 5h-20a2.5,2.5 0,0 1,0 -5z" />
+</vector>

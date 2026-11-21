@@ -1,0 +1,64 @@
+# Appli « Révisions d'anglais » (dossier anglais/) : fabrique l'APK et le publie dans la
+# release « anglais » (sans toucher aux versions de Radar Alerte).
+# Lien de téléchargement direct :
+#   https://github.com/JamesRMaker/radar-alerte/releases/download/anglais/RevisionsAnglais.apk
+name: Révisions d'anglais - APK
+
+on:
+  push:
+    branches: [main]
+    paths: ["anglais/android/**", ".github/workflows/anglais-apk.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: anglais-apk
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Clé de signature (mêmes secrets que Radar Alerte)
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Secrets KEYSTORE_B64 et KEYSTORE_PASSWORD manquants."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | tr -d ' \n\r' | base64 -d > "$RUNNER_TEMP/app.jks"
+          echo "APP_KEYSTORE=$RUNNER_TEMP/app.jks" >> "$GITHUB_ENV"
+
+      - name: Compilation de l'APK
+        working-directory: anglais/android
+        env:
+          APP_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/RevisionsAnglais.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RevisionsAnglais
+          path: RevisionsAnglais.apk
+
+      - name: Publication (release « anglais »)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete anglais --yes --cleanup-tag 2>/dev/null || true
+          gh release create anglais RevisionsAnglais.apk \
+            --title "Révisions d'anglais (version ${{ github.run_number }})" \
+            --notes "Téléchargez RevisionsAnglais.apk ci-dessous et ouvrez-le sur le téléphone. Les nouveaux mots arrivent ensuite tout seuls, sans réinstaller." \
+            --latest=false
