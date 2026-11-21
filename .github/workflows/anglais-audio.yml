@@ -1,0 +1,40 @@
+# Appli « Révisions d'anglais » : fabrique les sons de prononciation manquants
+# (voix choisie dans anglais/tools/voice.txt ; si elle change, tous les sons sont refaits).
+name: Révisions d'anglais - sons
+
+on:
+  push:
+    branches: [main]
+    paths: ["anglais/site/index.html", "anglais/tools/**", ".github/workflows/anglais-audio.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: anglais-audio
+  cancel-in-progress: false
+
+jobs:
+  audio:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Outils
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
+          pip install -q edge-tts
+
+      - name: Fabrication des sons
+        run: python3 anglais/tools/make_audio.py anglais/site
+
+      - name: Enregistrement dans le dépôt
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add anglais/site/audio
+          if git diff --cached --quiet; then echo "Aucun nouveau son."; exit 0; fi
+          git commit -m "Anglais : sons de prononciation"
+          for i in 1 2 3; do git pull --rebase -q && git push && exit 0; sleep 5; done
+          exit 1

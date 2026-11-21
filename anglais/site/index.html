@@ -497,7 +497,7 @@ function speakEl(url, t){
   } catch (e) { ttsFallback(t); }
 }
 function speak(t){
-  const url = "audio/" + audioSlug(t) + ".mp3?v=4";
+  const url = "audio/" + audioSlug(t) + ".mp3?v=5";
   const ctx = getCtx();
   if (!ctx) return speakEl(url, t);
   try { if (ctx.state !== "running") ctx.resume(); } catch (e) {}
