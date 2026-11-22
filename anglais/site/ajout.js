@@ -308,6 +308,38 @@
     if (t.dataset.ctxSay !== undefined) { playSentence(current()); return; }
   });
 
+
+  // ---------- Fréquence d'usage en anglais (frequences.json : 4 très courant … 1 rare) ----------
+  let FQ = {};
+  fetch("frequences.json").then(r => r.ok ? r.json() : {}).then(d => { FQ = d || {}; if (view === "list" || view === "play") render(); }).catch(() => {});
+  const FQ_LABEL = { 4: "très courant", 3: "courant", 2: "peu courant", 1: "rare" };
+  const st3 = document.createElement("style");
+  st3.textContent = `
+    .fq{display:inline-block;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:middle;font-family:inherit;letter-spacing:0}
+    .fq4{background:rgba(48,209,88,.18);color:#13803a} .fq3{background:rgba(10,132,255,.15);color:#0a63c9}
+    .fq2{background:rgba(255,149,10,.18);color:#a85c00} .fq1{background:rgba(120,120,140,.18);color:#55586b}
+  `;
+  document.head.appendChild(st3);
+  const fqBadge = w => FQ[w.en] ? `<span class="fq fq${FQ[w.en]}" title="Fréquence en anglais">${FQ_LABEL[FQ[w.en]]}</span>` : "";
+
+  const baseDetail = detail;
+  detail = function (w) {
+    const html = baseDetail(w);
+    const k = html.indexOf("</span></div>");
+    return k < 0 ? html : html.slice(0, k + 7) + fqBadge(w) + html.slice(k + 7);
+  };
+
+  const baseList2 = renderList;
+  renderList = function () {
+    let html = baseList2();
+    for (const w of W) {
+      const b = fqBadge(w); if (!b) continue;
+      const needle = `data-speak="${esc(w.en)}">${esc(w.en)}</b>`;
+      html = html.replace(needle, needle + b);
+    }
+    return html;
+  };
+
   rebuild();
   render();
 })();
