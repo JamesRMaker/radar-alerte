@@ -157,25 +157,63 @@ public class MainActivity extends Activity {
     // Voix du téléphone (anglais américain, voix féminine si possible)
     // ------------------------------------------------------------------------------------
 
+    static final String GOOGLE_TTS = "com.google.android.tts";
+    private String voiceName = "";
+    private String engineName = "";
+
+    /** Voix Google du téléphone si elle est installée (meilleure qualité), sinon voix par défaut. */
     private void initTts() {
-        tts = new TextToSpeech(getApplicationContext(), status -> {
-            if (status != TextToSpeech.SUCCESS) return;
+        startTts(GOOGLE_TTS);
+    }
+
+    private void startTts(String engine) {
+        final boolean google = GOOGLE_TTS.equals(engine);
+        TextToSpeech.OnInitListener l = status -> {
+            if (status != TextToSpeech.SUCCESS) {
+                if (google) { try { tts.shutdown(); } catch (Exception ignored) { } startTts(null); }
+                return;
+            }
+            engineName = google ? "Google" : String.valueOf(tts.getDefaultEngine());
             tts.setLanguage(Locale.US);
-            tts.setSpeechRate(0.9f);
-            try {
-                Voice best = null;
-                for (Voice v : tts.getVoices()) {
-                    if (!Locale.US.equals(v.getLocale())) continue;
-                    if (v.isNetworkConnectionRequired()) continue;
-                    if (v.getFeatures() != null && v.getFeatures().contains("notInstalled")) continue;
-                    String n = v.getName().toLowerCase(Locale.ROOT);
-                    if (n.contains("sfg") || n.contains("tpc") || n.contains("female")) { best = v; break; }
-                    if (best == null) best = v;
-                }
-                if (best != null) tts.setVoice(best);
-            } catch (Exception ignored) { }
+            tts.setSpeechRate(0.92f);
+            pickVoice();
             ttsReady = true;
-        });
+        };
+        tts = engine == null ? new TextToSpeech(getApplicationContext(), l)
+                             : new TextToSpeech(getApplicationContext(), l, engine);
+    }
+
+    /**
+     * Choisit la voix anglaise américaine la plus naturelle : féminine, haute qualité,
+     * de préférence la version « en ligne » de Google (plus naturelle) quand Internet est là.
+     */
+    private void pickVoice() {
+        try {
+            boolean online = isOnline();
+            Voice best = null; int bestScore = Integer.MIN_VALUE;
+            for (Voice v : tts.getVoices()) {
+                Locale loc = v.getLocale();
+                if (loc == null || !"en".equals(loc.getLanguage()) || !"US".equals(loc.getCountry())) continue;
+                if (v.getFeatures() != null && v.getFeatures().contains("notInstalled")) continue;
+                if (v.isNetworkConnectionRequired() && !online) continue;
+                String n = v.getName().toLowerCase(Locale.ROOT);
+                int score = v.getQuality() / 10;                         // 50 = très haute qualité
+                if (n.matches(".*-(tpf|sfg|tpc|iob|iog)-.*") || n.contains("female")) score += 100;
+                if (n.matches(".*-(iol|iom|tpd)-.*") || n.contains("male") && !n.contains("female")) score -= 100;
+                if (v.isNetworkConnectionRequired() || n.endsWith("-network")) score += 30;
+                if (score > bestScore) { bestScore = score; best = v; }
+            }
+            if (best != null) { tts.setVoice(best); voiceName = best.getName(); }
+        } catch (Exception ignored) { }
+    }
+
+    private boolean isOnline() {
+        try {
+            android.net.ConnectivityManager cm =
+                (android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
+            return nc != null && nc.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        } catch (Exception e) { return false; }
     }
 
     // ------------------------------------------------------------------------------------
@@ -232,9 +270,17 @@ public class MainActivity extends Activity {
             if (tts != null && ttsReady) tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "say");
         }
 
+        /** Voix utilisée (pour l'afficher et refaire les sons si elle change). */
+        @JavascriptInterface
+        public String voiceInfo() {
+            if (!ttsReady) return "";
+            return engineName + "|" + voiceName;
+        }
+
         @JavascriptInterface
         public void synth(String text, String slug) {
             if (tts == null || !ttsReady) return;
+            pickVoice();
             localDir.mkdirs();
             tts.synthesizeToFile(text, new Bundle(), localAudio(slug), "file-" + slug);
         }

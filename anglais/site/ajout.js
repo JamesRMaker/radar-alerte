@@ -30,6 +30,20 @@
     applyMine();
   }
 
+  // Voix du téléphone : si elle a changé (meilleure voix choisie), on refait les sons des mots ajoutés.
+  const VKEY = "vocab-voice-v1";
+  function voiceInfo() { try { return String(AndroidApp.voiceInfo() || ""); } catch (e) { return ""; } }
+  function resynthIfNeeded(tries) {
+    const v = voiceInfo();
+    if (!v) { if (tries > 0) setTimeout(() => resynthIfNeeded(tries - 1), 700); return; }
+    let old = ""; try { old = localStorage.getItem(VKEY) || ""; } catch (e) {}
+    if (old === v) return;
+    added.forEach(a => { try { AndroidApp.synth(a.en, audioSlug(a.en)); } catch (e) {} });
+    try { localStorage.setItem(VKEY, v); } catch (e) {}
+    if (view === "add") render();
+  }
+  setTimeout(() => resynthIfNeeded(10), 500);
+
   // Voix du téléphone quand un son manque.
   ttsFallback = t => { try { AndroidApp.speak(String(t)); } catch (e) {} };
 
@@ -79,6 +93,7 @@
         <button class="btn main" data-a-save>Ajouter à mes mots</button>
       </div>
       ${F.msg ? `<div class="addmsg ${F.ok ? "ok" : "ko"}">${esc(F.msg)}</div>` : ""}
+      ${voiceLine()}
     </section>
     <section class="panel">
       <div class="label" style="margin-top:0">Ajoutés sur le téléphone (${added.length})</div>
@@ -88,6 +103,13 @@
       ${mineList.length ? `<button class="btn ghost" data-a-share style="margin-top:12px">Envoyer la liste à Claude</button>
         <div class="small" style="margin-top:8px">Pour les mettre aussi dans le tableau « Vocabulaire anglais » et l'appli Claude : envoie la liste dans une conversation avec Claude.</div>` : ""}
     </section>`;
+  }
+
+  function voiceLine() {
+    const v = voiceInfo(); if (!v) return "";
+    const [eng, name] = v.split("|");
+    if (eng !== "Google") return `<div class="small" style="margin-top:12px">Voix du téléphone : ${esc(eng)}. Pour une voix plus naturelle, installe « Services de synthèse vocale de Google » (Speech Services by Google) depuis le Play Store, puis relance l'appli.</div>`;
+    return `<div class="small" style="margin-top:12px">Voix : Google ${name && name.endsWith("-network") ? "en ligne (la plus naturelle)" : "du téléphone"}.</div>`;
   }
 
   function readForm() {
