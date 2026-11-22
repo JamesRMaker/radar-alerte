@@ -60,9 +60,17 @@ def clean(raw, out):
     tmp.unlink()
 
 
-async def make(text, sem):
-    out = AUDIO / f"{slug(text)}.mp3"
-    raw = AUDIO / f"{slug(text)}.raw.mp3"
+def examples():
+    f = SITE / "exemples.json"
+    if not f.exists():
+        return {}
+    return {w: v[0].replace("[", "").replace("]", "") for w, v in json.loads(f.read_text(encoding="utf-8")).items()}
+
+
+async def make(text, sem, name=None):
+    name = name or slug(text)
+    out = AUDIO / f"{name}.mp3"
+    raw = AUDIO / f"{name}.raw.mp3"
     t = text.strip()
     if t[-1] not in ".!?":
         t += "."
@@ -83,10 +91,23 @@ async def make(text, sem):
 async def main():
     AUDIO.mkdir(parents=True, exist_ok=True)
     redo_all = not STAMP.exists() or STAMP.read_text().strip() != VOICE
-    todo = [w for w in words() if redo_all or not (AUDIO / f"{slug(w)}.mp3").exists()]
+    todo = [(w, slug(w)) for w in words() if redo_all or not (AUDIO / f"{slug(w)}.mp3").exists()]
+    # Phrases d'exemple (exercice « En contexte ») : audio/ex-<slug>.mp3, refaites si la phrase change.
+    done = {}
+    stamp_ex = AUDIO / "exemples.txt"
+    if stamp_ex.exists() and not redo_all:
+        for line in stamp_ex.read_text(encoding="utf-8").splitlines():
+            k, _, v = line.partition("\t")
+            done[k] = v
+    ex = examples()
+    for w, sentence in ex.items():
+        name = "ex-" + slug(w)
+        if redo_all or done.get(name) != sentence or not (AUDIO / f"{name}.mp3").exists():
+            todo.append((sentence, name))
     print(f"Voix {VOICE} — {len(todo)} son(s) à fabriquer" + (" (tous)" if redo_all else ""))
     sem = asyncio.Semaphore(4)
-    await asyncio.gather(*(make(w, sem) for w in todo))
+    await asyncio.gather(*(make(t, sem, n) for t, n in todo))
+    stamp_ex.write_text("".join(f"ex-{slug(w)}\t{s}\n" for w, s in ex.items()), encoding="utf-8")
     STAMP.write_text(VOICE + "\n")
 
 

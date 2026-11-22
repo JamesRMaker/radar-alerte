@@ -5,7 +5,7 @@ name: Révisions d'anglais - sons
 on:
   push:
     branches: [main]
-    paths: ["anglais/site/index.html", "anglais/tools/**", ".github/workflows/anglais-audio.yml"]
+    paths: ["anglais/site/index.html", "anglais/site/exemples.json", "anglais/tools/**", ".github/workflows/anglais-audio.yml"]
   workflow_dispatch:
 
 permissions:

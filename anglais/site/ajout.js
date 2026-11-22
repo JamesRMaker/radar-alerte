@@ -206,6 +206,108 @@
     return html;
   };
 
+
+  // ---------- Exercice « En contexte » : la phrase la plus courante, avec un trou ----------
+  let EX = {};
+  fetch("exemples.json").then(r => r.ok ? r.json() : {}).then(d => { EX = d || {}; if (view === "home") render(); }).catch(() => {});
+  const hasEx = w => !!EX[w.en];
+
+  const st2 = document.createElement("style");
+  st2.textContent = `
+    .m-ctx{background:var(--t-green)}
+    .ctxs{font-size:1.32rem;line-height:1.45;font-weight:600;margin:6px 0 4px}
+    .ctxs .blank{display:inline-block;min-width:84px;border-bottom:3px solid var(--accent);margin:0 2px}
+    .ctxs mark{background:var(--accent-soft);color:var(--accent);border-radius:8px;padding:0 5px}
+    .ctxfr{margin-top:10px;color:var(--muted);font-size:.95rem;font-style:italic}
+    .ctxbtn{border:0;background:none;color:var(--accent);font:inherit;font-weight:600;font-size:.92rem;margin-top:12px;padding:6px}
+  `;
+  document.head.appendChild(st2);
+
+  const ICON_CTX = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h6M14 12h6M4 18h16"/><path d="M10.5 12h3" stroke-dasharray="1 2"/></svg>';
+
+  const baseHome = renderHome;
+  renderHome = function () {
+    const html = baseHome();
+    const n = W.filter(hasEx).length;
+    const btn = `<button class="mode m-ctx" data-start="ctx"><span class="ic">${ICON_CTX}</span><span><b>En contexte</b><span>${n ? "Le mot dans une phrase courante : trouve celui qui manque." : "Chargement des phrases…"}</span></span></button>`;
+    const k = html.lastIndexOf("</div>");
+    return html.slice(0, k) + btn + html.slice(k);
+  };
+
+  const baseStart = start;
+  start = function (mode) {
+    if (mode !== "ctx") return baseStart(mode);
+    const q = buildQueue(W.length).filter(i => hasEx(W[i])).slice(0, settings.size);
+    if (!q.length) return;
+    S = { mode: "ctx", dir: "en", queue: q, pos: 0, total: q.length, graded: new Set(), right: [], wrong: [],
+          answered: false, choice: null, typed: "", okTyped: null, opts: null, showFr: false, played: -1 };
+    view = "play"; render();
+  };
+
+  function sentence(w, reveal) {
+    const ex = EX[w.en][0];
+    return esc(ex).replace(/\[(.+?)\]/, (m, g) => reveal ? `<mark>${g}</mark>` : `<span class="blank">&nbsp;</span>`);
+  }
+  function plain(w) { return EX[w.en][0].replace(/[\[\]]/g, ""); }
+
+  function playSentence(w) {
+    const url = "audio/ex-" + audioSlug(w.en) + ".mp3?v=5";
+    const text = plain(w);
+    const ctx = getCtx();
+    if (!ctx) return speakEl(url, text);
+    try { if (ctx.state !== "running") ctx.resume(); } catch (e) {}
+    const token = ++speakToken;
+    loadBuf(url).then(buf => {
+      if (token !== speakToken) return;
+      stopCur();
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const g = ctx.createGain(); const at = ctx.currentTime + 0.03;
+      g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(1, at + 0.012);
+      src.connect(g); g.connect(ctx.destination);
+      src.start(at, Math.min(0.15, buf.duration / 4));
+      curSrc = { src, g };
+      src.onended = () => { if (curSrc && curSrc.src === src) curSrc = null; };
+    }).catch(() => { if (token === speakToken) ttsFallback(text); });
+  }
+
+  const basePlay = renderPlay;
+  renderPlay = function () {
+    if (!S || S.mode !== "ctx") return basePlay();
+    const w = current();
+    const done = Math.min(S.graded.size, S.total);
+    const top = `<div class="top">
+        <button class="x" data-quit aria-label="Arrêter">${ICON.close}</button>
+        <div class="bar"><i style="width:${done / S.total * 100}%"></i></div>
+        <div class="count">${done}/${S.total}</div>
+      </div>`;
+    if (!S.opts) S.opts = options(w);
+    const ok = S.answered && (S.choice === w.i || sameAnswer(W[S.choice], w, S.dir));
+    const opts = S.opts.map(i => {
+      const x = W[i]; let cls = "opt";
+      if (S.answered) { if (i === w.i || sameAnswer(x, w, S.dir)) cls += " right"; else if (i === S.choice) cls += " wrong"; }
+      return `<button class="${cls}" data-opt="${i}" ${S.answered ? "disabled" : ""}>${esc(x.en)}</button>`;
+    }).join("");
+    if (S.answered && S.played !== S.pos) { S.played = S.pos; setTimeout(() => playSentence(w), 120); }
+    return top + `<section class="postcard card">
+        <div class="dirtag">${S.answered ? "La phrase complète" : "Quel mot manque ?"}</div>
+        ${S.answered ? `<div class="postmark ${ok ? "good" : "bad"}">${ok ? "Bravo !" : "Raté"}</div>` : ""}
+        <div class="ctxs">${sentence(w, S.answered)}</div>
+        ${S.answered || S.showFr ? `<div class="ctxfr">${esc(EX[w.en][1])}</div>`
+          : `<button class="ctxbtn" data-ctx-fr>Voir la traduction de la phrase</button>`}
+        ${S.answered ? `<button class="ctxbtn" data-ctx-say>🔊 Réécouter la phrase</button>
+          ${detail(w).replace('<div class="detail">', '<div class="detail" style="margin-top:12px">')}` : ""}
+      </section>
+      <div class="opts">${opts}</div>
+      ${S.answered ? `<div style="margin-top:14px"><button class="btn main" data-next>Suivant</button></div>` : ""}`;
+  };
+
+  $app.addEventListener("click", e => {
+    if (view !== "play" || !S || S.mode !== "ctx") return;
+    const t = e.target.closest("button"); if (!t) return;
+    if (t.dataset.ctxFr !== undefined) { S.showFr = true; render(); return; }
+    if (t.dataset.ctxSay !== undefined) { playSentence(current()); return; }
+  });
+
   rebuild();
   render();
 })();

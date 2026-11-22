@@ -9,6 +9,8 @@ Appli Android de révision du vocabulaire anglais, rangée ici à part de Radar 
 - `site/ajout.js` : onglet « + Ajouter » (seulement dans l'APK) : traduction en ligne (MyMemory),
   voix du téléphone pour les nouveaux mots, mots gardés sur le téléphone, liste à envoyer à Claude.
   Ce fichier n'est pas dans l'appli Claude : ne pas le supprimer en recopiant `index.html`.
+- `site/exemples.json` : une phrase d'exemple courante par mot (le mot entre crochets) + sa traduction,
+  pour l'exercice « En contexte » (APK). Les phrases sont lues par la voix Ava (`audio/ex-<mot>.mp3`).
 - `android/` : l'appli Android (WebView). Un changement dans `android/` refait l'APK
   (workflow « Révisions d'anglais - APK »). La page et les sons sont aussi copiés dans l'APK
   pour marcher hors connexion.

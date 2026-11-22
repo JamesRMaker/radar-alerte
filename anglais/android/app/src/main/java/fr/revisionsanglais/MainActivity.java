@@ -111,9 +111,11 @@ public class MainActivity extends Activity {
         String key = path + (query == null ? "" : "__" + query.replaceAll("[^A-Za-z0-9=._-]", "_"));
         File cached = new File(cacheDir, key);
         boolean page = path.endsWith(".html");
+        // Page, scripts et données : version en ligne d'abord (mises à jour), copie gardée sinon.
+        boolean fresh = page || path.endsWith(".js") || path.endsWith(".json") || path.endsWith(".css");
 
         byte[] data = null;
-        if (page) {
+        if (fresh) {
             data = download(REMOTE + path, 4000);
             if (data != null) save(cached, data);
             else data = read(cached);
