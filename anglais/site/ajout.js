@@ -340,6 +340,18 @@
     return html;
   };
 
+
+  // Colonne « Fréquence » dans l'onglet Tableau
+  const baseTable = renderTable;
+  renderTable = function () {
+    let html = baseTable();
+    const byEn = {}; for (const w of W) byEn[esc(w.en)] = w;
+    html = html.replace("<th>🇬🇧 Anglais</th>", "<th>🇬🇧 Anglais</th><th>📊 Fréquence</th>");
+    html = html.replace(/(<tr><th scope="row"><span class="say" data-speak="([^"]*)">[\s\S]*?<\/th>)/g,
+      (m, cell, en) => cell + `<td>${byEn[en] ? fqBadge(byEn[en]).replace('class="fq ', 'style="margin-left:0" class="fq ') : ""}</td>`);
+    return html.replace('colspan="5"', 'colspan="6"');
+  };
+
   rebuild();
   render();
 })();
