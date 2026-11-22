@@ -352,6 +352,44 @@
     return html.replace('colspan="5"', 'colspan="6"');
   };
 
+
+  // ---------- Mots à revoir en un clic ----------
+  const dueIdx = () => { const now = Date.now(); return W.filter(w => { const r = rec(w); return r.b > 0 && r.d <= now; }).map(w => w.i); };
+  const st4 = document.createElement("style");
+  st4.textContent = `
+    .duebtn{width:100%;margin:14px 0 2px;display:flex;align-items:center;justify-content:center;gap:10px}
+    .duebtn b{background:rgba(255,255,255,.28);border-radius:999px;padding:2px 10px}
+    .stat.s-due{cursor:pointer}
+  `;
+  document.head.appendChild(st4);
+
+  const baseHome2 = renderHome;
+  renderHome = function () {
+    const html = baseHome2();
+    const n = dueIdx().length;
+    const btn = n
+      ? `<button class="btn main duebtn" data-due-go>▶ Revoir mes mots à revoir <b>${n}</b></button>`
+      : `<div class="small" style="text-align:center;margin:14px 0 2px">Aucun mot à revoir pour l'instant 🎉</div>`;
+    const k = html.indexOf('<div class="label lead">');
+    return k < 0 ? html : html.slice(0, k) + btn + html.slice(k);
+  };
+
+  const baseStart2 = start;
+  start = function (mode) {
+    if (mode !== "due") return baseStart2(mode);
+    const q = shuffle(dueIdx()).slice(0, 40);
+    if (!q.length) return;
+    S = { mode: "quiz", dir: settings.dir, queue: q, pos: 0, total: q.length, graded: new Set(), right: [], wrong: [],
+          answered: false, choice: null, typed: "", okTyped: null, opts: null };
+    view = "play"; render(); window.scrollTo(0, 0);
+  };
+
+  $app.addEventListener("click", e => {
+    if (view !== "home") return;
+    if (e.target.closest("[data-due-go]")) { start("due"); return; }
+    if (e.target.closest(".stat.s-due")) { listFilter = "due"; listQuery = ""; view = "list"; render(); window.scrollTo(0, 0); }
+  });
+
   rebuild();
   render();
 })();
