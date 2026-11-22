@@ -317,7 +317,7 @@
   st3.textContent = `
     .fq{display:inline-block;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:middle;font-family:inherit;letter-spacing:0}
     .fq4{background:rgba(48,209,88,.18);color:#13803a} .fq3{background:rgba(10,132,255,.15);color:#0a63c9}
-    .fq2{background:rgba(255,149,10,.18);color:#a85c00} .fq1{background:rgba(120,120,140,.18);color:#55586b}
+    .fq2{background:rgba(255,149,10,.18);color:#a85c00} .fq1{background:rgba(255,59,48,.16);color:#c4271c}
   `;
   document.head.appendChild(st3);
   const fqBadge = w => FQ[w.en] ? `<span class="fq fq${FQ[w.en]}" title="Fréquence en anglais">${FQ_LABEL[FQ[w.en]]}</span>` : "";
