@@ -1,0 +1,120 @@
+ex-acquaint	Are you acquainted with my sister?
+ex-act-up	The kids always act up when they're tired.
+ex-acting	She is the acting director while he's away.
+ex-actually	I thought it would be easy, but it's actually quite hard.
+ex-amidst	Amidst all the chaos, she stayed calm.
+ex-appoint	She was appointed head of the department.
+ex-back-down	He refused to back down during the argument.
+ex-carefree	We spent a carefree summer by the sea.
+ex-clinch	They clinched the deal after hours of talks.
+ex-clumsy	Sorry, I'm so clumsy, I spilled my coffee.
+ex-content	The content of the report is confidential.
+ex-dashing	He looked dashing in his new suit.
+ex-dawdle	Don't dawdle, we're going to be late!
+ex-dependable	She's a dependable colleague; you can count on her.
+ex-draft	I've written a first draft of the letter.
+ex-engulf	The house was quickly engulfed in flames.
+ex-etch	That day is etched in my memory forever.
+ex-evenly	Spread the butter evenly on the bread.
+ex-fancy	We had dinner at a fancy restaurant.
+ex-fathom	I can't fathom why he did that.
+ex-fend-off	She managed to fend off the attacker.
+ex-file-a-motion	The lawyer will file a motion to dismiss the case.
+ex-fledgling	It's a fledgling company with only five employees.
+ex-foam	I'd like a cappuccino with extra foam.
+ex-forehead	She kissed him on the forehead.
+ex-forfeit	If you cancel now, you'll forfeit your deposit.
+ex-foster	The program aims to foster cooperation between schools.
+ex-garner	The proposal garnered a lot of support.
+ex-gifted	He's a gifted musician.
+ex-give-off	These flowers give off a lovely smell.
+ex-give-way	The old bridge suddenly gave way.
+ex-goose	A goose was swimming on the lake.
+ex-grant	The bank granted him a loan.
+ex-grief	She was overcome with grief after her father's death.
+ex-grieve	It takes time to grieve for a loved one.
+ex-groom	They are grooming him to take over the company.
+ex-ground	Despite the pressure, she held her ground.
+ex-haggle	At the market, you can haggle over the price.
+ex-handful	Only a handful of people came to the meeting.
+ex-hang-on	Hang on, I'll be right back!
+ex-harness	We need to harness the power of the sun.
+ex-he-is-up-to-no-good	Look at him sneaking around: he is up to no good.
+ex-he-pulled-one-over-us	He sold us a broken car: he pulled one over us!
+ex-heed	You should heed the doctor's advice.
+ex-hefty	They had to pay a hefty fine.
+ex-i-didn-t-mean-it	I'm sorry I shouted at you, I didn't mean it.
+ex-i-need-to-get-going	It's getting late, I need to get going.
+ex-i-was-mistaken	I thought the shop was open, but I was mistaken.
+ex-i-ve-been-wronged	I want justice: I've been wronged!
+ex-idle	He hates being idle; he always needs something to do.
+ex-it-can-t-be-helped	The train is cancelled, but it can't be helped.
+ex-itch	These mosquito bites really itch.
+ex-lame	That's a pretty lame excuse.
+ex-laughingstock	After that speech, he became the laughingstock of the office.
+ex-lazy	I always feel lazy on Sunday mornings.
+ex-leftover	We had leftover pizza for lunch.
+ex-locker-room	The players are in the locker room.
+ex-loiter	Please don't loiter in front of the store.
+ex-moat	The castle is surrounded by a moat.
+ex-onward	From now onward, I'll be more careful.
+ex-overtake	Never overtake on a bend.
+ex-per	The speed limit is 50 kilometres per hour.
+ex-perk	Free lunch is one of the perks of the job.
+ex-pester	Stop pestering me, I'm busy!
+ex-policy	The company has a strict no-smoking policy.
+ex-postpone	The match was postponed because of the rain.
+ex-prior	No prior experience is required.
+ex-pull-off	It was risky, but they pulled off the plan.
+ex-pull-over	The police officer told me to pull over.
+ex-quell	The government tried to quell the protests.
+ex-quote	Can you give me a quote for the repairs?
+ex-reach-out	Feel free to reach out if you have any questions.
+ex-redeem	You can redeem this voucher in any of our stores.
+ex-relapse	The patient had a relapse after a few weeks.
+ex-remnant	These walls are a remnant of the old city.
+ex-resort	Surgery should be the last resort.
+ex-resume	The meeting will resume after lunch.
+ex-riddle	Can you solve this riddle?
+ex-ridge	We walked along the mountain ridge.
+ex-ripen	Leave the bananas to ripen for a few days.
+ex-roundabout	Take the second exit at the roundabout.
+ex-sample	The nurse took a blood sample.
+ex-schedule	The train is running behind schedule.
+ex-scramble	I'll have scrambled eggs, please.
+ex-seek	You should seek medical advice.
+ex-seep	Water was seeping through the ceiling.
+ex-set-up	I didn't steal anything: I was set up!
+ex-shove	Stop shoving, wait your turn!
+ex-shred	Please shred these documents.
+ex-slack	Don't slack off; the exam is next week.
+ex-slay	The knight set out to slay the dragon.
+ex-sloth	Sloth is one of the seven deadly sins.
+ex-slothful	He became slothful after he retired.
+ex-soil	Tomatoes grow best in rich soil.
+ex-sore	I have a sore throat.
+ex-sour	This milk has gone sour.
+ex-statement	The minister made a statement to the press.
+ex-stay-put	Stay put, I'm coming to get you.
+ex-steady	Hold the ladder steady, please.
+ex-stern	The teacher gave him a stern look.
+ex-still	Keep still while I take the picture.
+ex-strain	Looking at a screen all day puts a strain on your eyes.
+ex-strife	The country was torn apart by civil strife.
+ex-stroll	Let's go for a stroll in the park.
+ex-sway	The trees were swaying in the wind.
+ex-swell	My ankle started to swell after the fall.
+ex-tail	The detective tailed the suspect for days.
+ex-throughout	It rained throughout the day.
+ex-tuck	Tuck your shirt in, please.
+ex-tuck-your-tail	When he saw the big dog, he tucked his tail and ran.
+ex-wage	The minimum wage went up this year.
+ex-wary	Be wary of strangers online.
+ex-wedge	Put a wedge under the door to keep it open.
+ex-whim	She bought the dress on a whim.
+ex-work-out	I work out at the gym three times a week.
+ex-worthwhile	The trip was long, but it was worthwhile.
+ex-wrap-up	Let's wrap up the meeting.
+ex-wreck	The storm wrecked several boats.
+ex-wretch	The poor wretch had nowhere to go.
+ex-yummy	This cake is yummy!
