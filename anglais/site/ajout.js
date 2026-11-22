@@ -10,8 +10,14 @@
   try { added = JSON.parse(localStorage.getItem(AKEY)) || []; } catch (e) { added = []; }
   const saveAdded = () => { try { localStorage.setItem(AKEY, JSON.stringify(added)); } catch (e) {} };
 
+  // Liste personnelle : après « Effacer tous les mots », la liste partagée n'est plus affichée.
+  const PKEY = "vocab-personal-v1";
+  let personal = false;
+  try { personal = localStorage.getItem(PKEY) === "1"; } catch (e) {}
+  const SHARED = W.slice();   // mots de la liste partagée (DATA), gardés pour pouvoir les remettre
+
   // Mots déjà arrivés par Claude (dans DATA) : la copie du téléphone n'est plus utile.
-  const official = new Set(DATA.map(d => key(d[0])));
+  const official = new Set(personal ? [] : DATA.map(d => key(d[0])));
   const before = added.length;
   added = added.filter(a => {
     if (!official.has(key(a.en))) return true;
@@ -22,8 +28,9 @@
 
   function rebuild() {
     // W = mots officiels + mots ajoutés ici, par ordre alphabétique (w.i = position dans W).
-    const base = W.filter(w => !w.local);
-    const extra = added.map(a => ({ en: a.en, fr: a.fr, mine: a.mine || "", mine0: a.mine || "", note: a.note || "", local: true }));
+    const base = personal ? [] : SHARED;
+    const sharedKeys = new Set(base.map(w => key(w.en)));
+    const extra = added.filter(a => !sharedKeys.has(key(a.en))).map(a => ({ en: a.en, fr: a.fr, mine: a.mine || "", mine0: a.mine || "", note: a.note || "", local: true }));
     const all = base.concat(extra).sort((a, b) => a.en.localeCompare(b.en, "en", { sensitivity: "base" }));
     W.length = 0;
     all.forEach((w, i) => { w.i = i; W.push(w); });
@@ -388,6 +395,71 @@
     if (view !== "home") return;
     if (e.target.closest("[data-due-go]")) { start("due"); return; }
     if (e.target.closest(".stat.s-due")) { listFilter = "due"; listQuery = ""; view = "list"; render(); window.scrollTo(0, 0); }
+  });
+
+
+  // ---------- Effacer tous les mots (avec sécurité) ----------
+  let wipeStep = 0, wipeText = "";
+  const baseHome3 = renderHome;
+  renderHome = function () {
+    if (W.length) return baseHome3();
+    return `<section class="postcard hero"><div class="hero-k">Ta liste est vide</div>
+      <div class="hero-fr" style="margin-top:6px">Ajoute tes premiers mots dans l'onglet « + Ajouter » : ils apparaîtront ici pour les réviser.</div></section>`;
+  };
+  const baseStart3 = start;
+  start = function (mode) { if (!W.length) return; return baseStart3(mode); };
+
+  function wipeBlock() {
+    if (personal && wipeStep === 0) {
+      return `<div class="reset"><button class="btn ghost" data-w-restore>Remettre la liste de mots partagée</button>
+        <div class="small" style="margin-top:6px">Ta liste est personnelle : la liste partagée est masquée.</div></div>`;
+    }
+    if (wipeStep === 0) return `<div class="reset"><button class="btn ghost" data-w-start style="color:var(--bad)">Effacer tous les mots</button></div>`;
+    const ok = wipeText.trim().toUpperCase() === "EFFACER";
+    return `<div class="reset"><div class="confirm">
+        <b>Effacer tous les mots ?</b><br>
+        La liste sera vide : tous les mots, ceux que tu as ajoutés sur ce téléphone, tes traductions et ta progression seront effacés.
+        Les mots partagés ne seront plus affichés (tu pourras les remettre ensuite).
+        <div style="margin-top:10px">Pour confirmer, écris <b>EFFACER</b> :</div>
+        <input type="text" id="w-input" value="${esc(wipeText)}" autocapitalize="characters" autocomplete="off" spellcheck="false" style="margin-top:8px">
+        <div class="actions"><button class="btn ghost" data-w-cancel>Annuler</button>
+          <button class="btn ko" data-w-yes ${ok ? "" : "disabled style=\"opacity:.45\""}>Tout effacer</button></div>
+      </div></div>`;
+  }
+
+  const baseList3 = renderList;
+  renderList = function () {
+    const html = baseList3();
+    const k = html.lastIndexOf("</section>");
+    return html.slice(0, k) + wipeBlock() + html.slice(k);
+  };
+
+  function wipeAll() {
+    added.forEach(a => { try { AndroidApp.dropLocal(audioSlug(a.en)); } catch (e) {} });
+    added = []; saveAdded();
+    P = {}; lsSave(); M = {}; mSave();
+    personal = true; try { localStorage.setItem(PKEY, "1"); } catch (e) {}
+    wipeStep = 0; wipeText = ""; S = null;
+    rebuild(); view = "home"; render(); window.scrollTo(0, 0);
+  }
+
+  $app.addEventListener("input", e => {
+    if (e.target.id !== "w-input") return;
+    wipeText = e.target.value;
+    const b = $app.querySelector("[data-w-yes]");
+    const ok = wipeText.trim().toUpperCase() === "EFFACER";
+    if (b) { b.disabled = !ok; b.style.opacity = ok ? "" : ".45"; }
+  });
+  $app.addEventListener("click", e => {
+    if (view !== "list") return;
+    const t = e.target.closest("button"); if (!t) return;
+    if (t.dataset.wStart !== undefined) { wipeStep = 1; wipeText = ""; render(); setTimeout(() => { const i = document.getElementById("w-input"); if (i) i.focus(); }, 30); return; }
+    if (t.dataset.wCancel !== undefined) { wipeStep = 0; wipeText = ""; render(); return; }
+    if (t.dataset.wYes !== undefined) { if (wipeText.trim().toUpperCase() === "EFFACER") wipeAll(); return; }
+    if (t.dataset.wRestore !== undefined) {
+      personal = false; try { localStorage.removeItem(PKEY); } catch (e) {}
+      S = null; rebuild(); render(); return;
+    }
   });
 
   rebuild();
