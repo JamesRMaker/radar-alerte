@@ -368,7 +368,7 @@
     const html = baseHome2();
     const n = dueIdx().length;
     const btn = n
-      ? `<button class="btn main duebtn" data-due-go>▶ Revoir mes mots à revoir <b>${n}</b></button>`
+      ? `<button class="btn main duebtn" data-due-go>▶ Travailler mes mots à revoir <b>${n}</b></button>`
       : `<div class="small" style="text-align:center;margin:14px 0 2px">Aucun mot à revoir pour l'instant 🎉</div>`;
     const k = html.indexOf('<div class="label lead">');
     return k < 0 ? html : html.slice(0, k) + btn + html.slice(k);
